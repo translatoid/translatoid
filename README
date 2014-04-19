@@ -1,0 +1,44 @@
+Translatoid version 0.1 
+using only google translate 
+
+Compiled with kde 4.2.60 ( neon projet)
+mkdir build
+cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=/opt/kde-nightly/
+
+restart Plasma.
+
+If you don't have nighlty, you have to install :
+$KDEDIR/lib/kde4/translatoid.so
+$KDEDIR/share/kde4/services/plasma-applet-translatoid.desktop
+
+report bug, by mail istdasklar@gmail.com
+
+Translatoid version 0.2 
+
+New stuff: 
+Add Icon flags in comboBox
+Add toogleButton for change language 
+Add Icon and title Graphics
+Add Progress Bar
+
+
+Translatoid version 0.3
+-add Catalan flag
+-Add language title
+- use Frame for the maintitle.
+- Correct some encodage bug
+
+
+Translatoid Version 0.4
+- use kde svn :  
+http://websvn.kde.org/trunk/playground/base/plasma/applets/translatoid
+- use PopupApplet! Now, Translatoid can be dock inside the main bar!
+- Change language selection method! Now, You have to click and a KlistWidget appear !
+- Add Copy and Past button
+- Add AutoDetection language in languageList
+- Add TooTip Message
+- Change icon 
+
+- Correct some bug! 
+
