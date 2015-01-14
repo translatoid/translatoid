@@ -115,6 +115,8 @@ private:
     int m_currentButton;
     bool m_autoPaste;
     bool m_autoTranslate;
+    bool m_autoSwapTranslate;
+    bool m_remember;
     int m_reminderDuration;
     int m_reminderFrenquency;
     QTimer * m_reminderTimer;

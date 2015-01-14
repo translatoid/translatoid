@@ -3,7 +3,6 @@
 #include <KIcon>
 #include <KLocale>
 #include <KStandardDirs>
-#include <klocale.h>
 LanguageModel::LanguageModel(QObject * parent)
         : QStandardItemModel(parent)
 {
@@ -336,12 +335,6 @@ void LanguageModel::setupLanguageMap()
       c.code = "il";
     c.icon = "kbflags/il.png";
     c.name = i18n("Yiddish");
-    m_languageMap[c.code] = (c);
-    
-    
-          c.code = "hu";
-    c.icon = "kbflags/hu.png";
-    c.name = i18n("Hungarian");
     m_languageMap[c.code] = (c);
 
 

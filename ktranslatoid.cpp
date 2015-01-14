@@ -43,10 +43,8 @@
 #include <Plasma/Corona>
 #include <Plasma/Theme>
 #include <Plasma/Frame>
-#include <QDebug>
-#include <qjson/parser.h>
 
-#include <klocale.h>
+#include <qjson/parser.h>
 
 
 KTranslatoid ::KTranslatoid(QObject *parent, const QVariantList &args)
@@ -64,11 +62,14 @@ KTranslatoid ::KTranslatoid(QObject *parent, const QVariantList &args)
     m_popupIcon = KIcon("translator");
     m_autoPaste = true;
     m_autoTranslate = true;
+    m_autoSwapTranslate = true;
+    m_remember = true;
     m_reminderDuration=5;
     m_reminderFrenquency= 10;
     m_languageModel = new LanguageModel;
-    m_reminder= new Reminder;
-
+    if (m_remember) {
+	m_reminder= new Reminder;
+    }
 
     m_sourceText->nativeWidget()->installEventFilter(this);
     connect(m_buttonTranslate, SIGNAL(clicked()), this, SLOT(translate()));
@@ -80,15 +81,18 @@ KTranslatoid ::KTranslatoid(QObject *parent, const QVariantList &args)
     setAspectRatioMode(Plasma::IgnoreAspectRatio);
 
     //Create 2 extender ! 1 for translation and 1 for reminder
-    m_reminderExtender = new Plasma::ExtenderItem(extender());
-    m_reminderExtender->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-
+    if (m_remember) { // FIXME this is ignored, because = TRUE!!!
+	m_reminderExtender = new Plasma::ExtenderItem(extender());
+   	m_reminderExtender->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    }
     m_extender = new Plasma::ExtenderItem(extender());
     m_extender->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     //create Timer to call showReminder
-    m_reminderTimer = new QTimer;
-    connect(m_reminderTimer,SIGNAL(timeout()),this,SLOT(showReminder()));
+    if (m_remember) {
+    	m_reminderTimer = new QTimer;
+    	connect(m_reminderTimer,SIGNAL(timeout()),this,SLOT(showReminder()));
+    }
 }
 
 //========================================================================================
@@ -102,11 +106,9 @@ KTranslatoid ::~KTranslatoid()
 //====================================================================================
 void KTranslatoid::init()
 {
-    constructForm();
     readConfig();
+    constructForm();
     setupPopupIcon();
-
-
 
 }
 
@@ -114,17 +116,6 @@ void KTranslatoid::init()
 void KTranslatoid::constructForm()
 {
     m_graphicsWidget = new QGraphicsWidget(m_extender);
-
-   m_sourceLanguageLabel->setStyleSheet("font: bold 12px");
-   m_destLanguageLabel->setStyleSheet("font: bold 12px");
-
-    Plasma::ToolTipContent data;
-    data.setMainText(i18n("Translatoid"));
-    data.setSubText(i18n("Use the mouse wheel on icon to swap languages"));
-
-    data.setImage(KIcon("translator").pixmap(IconSize(KIconLoader::Desktop)));
-
-    Plasma::ToolTipManager::self()->setContent(this, data);
 
     m_buttonChange->setIcon(KIcon("system-switch-user.png"));
     m_buttonChange->nativeWidget()->setToolTip(i18n("Invert the translation"));
@@ -145,37 +136,40 @@ void KTranslatoid::constructForm()
     Plasma::ToolButton * clearButton = new Plasma::ToolButton;
     Plasma::ToolButton * reminderButton = new Plasma::ToolButton;
 
-
     pastButton->nativeWidget()->setIcon(KIcon("edit-paste.png"));
     copyButton->nativeWidget()->setIcon(KIcon("edit-copy.png"));
     clearButton->nativeWidget()->setIcon(KIcon("edit-delete.png"));
-    reminderButton->nativeWidget()->setIcon(KIcon("rating.png"));
-
+    if (m_remember) {
+	reminderButton->nativeWidget()->setIcon(KIcon("rating.png"));
+    }
     pastButton->nativeWidget()->setToolTip(i18n("Paste a selection to translate it"));
     copyButton->nativeWidget()->setToolTip(i18n("Copy the result"));
     clearButton->nativeWidget()->setToolTip(i18n("Clear the source text"));
-    reminderButton->nativeWidget()->setToolTip(i18n("Click here to remind the translation"));
-
+    if (m_remember) {
+	reminderButton->nativeWidget()->setToolTip(i18n("Click here to remember the translation"));
+    }
     m_sourceLanguageButton->nativeWidget()->setToolTip(i18n("Change source language"));
     m_destLanguageButton->nativeWidget()->setToolTip(i18n("Change destination language"));
 
     connect(pastButton->nativeWidget(), SIGNAL(clicked()), this, SLOT(paste()));
     connect(copyButton->nativeWidget(), SIGNAL(clicked()), this, SLOT(copy()));
     connect(clearButton->nativeWidget(), SIGNAL(clicked()), m_sourceText->nativeWidget(), SLOT(clear()));
-
-    connect(reminderButton->nativeWidget(),SIGNAL(clicked()),this,SLOT(saveReminder()));
-
+    if (m_remember) {
+	connect(reminderButton->nativeWidget(),SIGNAL(clicked()),this,SLOT(saveReminder()));
+    }
     QGraphicsLinearLayout*  layoutControl = new QGraphicsLinearLayout(Qt::Horizontal);
 
     layoutControl->addItem(m_sourceLanguageButton);
     layoutControl->addItem(m_buttonChange);
     layoutControl->addItem(m_destLanguageButton);
-    layoutControl->addItem(reminderButton);
-    layoutControl->addStretch();
+    if (m_remember) {
+	layoutControl->addItem(reminderButton);
+    }
+
+    layoutControl->addItem(m_buttonTranslate);
     layoutControl->addItem(clearButton);
     layoutControl->addItem(pastButton);
     layoutControl->addItem(copyButton);
-    layoutControl->addItem(m_buttonTranslate);
 
     layoutControl->setMaximumHeight(20);
 
@@ -190,8 +184,6 @@ void KTranslatoid::constructForm()
     m_sourceText->setStyleSheet("color:"+col.name());
 
     m_destText->setStyleSheet("color:"+col.name());
-    //    QColor bkCol = Plasma::Theme::defaultTheme()->color(Plasma::Theme::defaultTheme()->HighlightColor);
-    //    m_buttonTranslate->setStyleSheet("background:"+bkCol.name());
 
     QGraphicsWidget * widget = new QGraphicsWidget;
     widget->setLayout(mainLayout);
@@ -203,7 +195,6 @@ void KTranslatoid::constructForm()
     m_graphicsWidget->setPreferredSize(530, 320);
 
     m_sourceText->nativeWidget()->selectAll();
-    // m_sourceText->nativeWidget()->setClickMessage(i18n("Your text here"));
 
     if (Solid::Networking::status() != Solid::Networking::Connected) {
         kDebug() << i18n("Networking is disabled. Cannot connect to Google.");
@@ -213,11 +204,12 @@ void KTranslatoid::constructForm()
     //Setup extenders
     m_reminderSourceText = new Plasma::Label;
     m_reminderTranslatedText= new Plasma::Label;
-    QColor sourceCol = Plasma::Theme::defaultTheme()->color(Plasma::Theme::defaultTheme()->TextColor);
-    QColor translatedCol =  Plasma::Theme::defaultTheme()->color(Plasma::Theme::defaultTheme()->TextColor);
-    
-    m_reminderSourceText->setStyleSheet("color:"+col.name()+";font-weight:bold");
-    m_reminderTranslatedText->setStyleSheet("color:"+col.name());
+    // not used
+    //QColor sourceCol = Plasma::Theme::defaultTheme()->color(Plasma::Theme::defaultTheme()->TextColor);
+    //QColor translatedCol =  Plasma::Theme::defaultTheme()->color(Plasma::Theme::defaultTheme()->TextColor);
+    if (m_remember) {
+    m_reminderSourceText->setStyleSheet("color:red;font-weight:bold");
+    m_reminderTranslatedText->setStyleSheet("color:green;font-weight:bold");
 
     QGraphicsLinearLayout *reminderLayout = new QGraphicsLinearLayout(Qt::Vertical);
     reminderLayout->setAlignment(m_reminderSourceText,Qt::AlignTop);
@@ -231,10 +223,9 @@ void KTranslatoid::constructForm()
     m_reminderExtender->setName("reminder");
     m_reminderExtender->setTitle(i18n("Do you remember?"));
     m_reminderExtender->setIcon(KIcon("rating"));
-
-
+    }
     m_extender->setWidget(m_graphicsWidget);
-    m_extender->setTitle(i18n("translatoid"));
+    m_extender->setTitle(i18n("Translatoid"));
 
 
 }
@@ -263,10 +254,10 @@ void KTranslatoid::translate()
     QString source = m_sourceLanguage.code.toUtf8().toPercentEncoding();
     QString dest = m_destLanguage.code.toUtf8().toPercentEncoding();
     QString texte= m_sourceText->nativeWidget()->toPlainText().toUtf8().toPercentEncoding();
-    QString st = "text="+texte+"&client=t&sl=" + source + "&tl=" + dest;
+    QString st = "text="+texte+"&client=json&sl=" + source + "&tl=" + dest;
 
     postData = st.toUtf8();
-qDebug()<<postData;
+
     
     if (m_job) {
         disconnect(m_job, 0, this, 0);
@@ -304,73 +295,78 @@ void KTranslatoid::httpDataReceived(KIO::Job *job, QByteArray data)
 void KTranslatoid::done()
 {
     setBusy(false);
-      m_job = 0;
-     //kDebug() << "HTTP Request done." << m_data;
- 
-    if (m_data.at(m_data.size()-6) == ',' &&
-    m_data.at(m_data.size()-7) == ','){
-       m_data.insert((m_data.size()-6), '"');
-       m_data.insert((m_data.size()-6), '"');
-    }
-     QString text;
-    QString dictionnary;
+    m_job = 0;
+    //kDebug() << "HTTP Request done." << m_data;
+
+    QString text;
+    text = text.fromUtf8(m_data);
+    /* m_data.clear();
+    kDebug() << "All data is read.";*/
+
+    QVariantList sentences;
+    QVariantList dict;
     QString textToReturn = QString();
-     text = text.fromUtf8(m_data);
-    kDebug() << text;
-     /* m_data.clear();
-     kDebug() << "All data is read.";*/
- 
+    QJson::Parser parser;
+    bool ok;
+    QVariantMap result = parser.parse(m_data,&ok).toMap();
 
-     QJson::Parser parser;
-     bool ok;
-    QVariantList result = parser.parse(m_data,&ok).toList();
- 
-     if (!ok) {
-         kDebug()<<"An error occured during parsing";
-        m_destText->setText(text);
-         return;
-     }
- 
+    if (!ok) {
+        kDebug()<<"An error occured during parsing";
+        return;
+    }
 
-    foreach ( QVariant map, result)
-     {
+    if (result.contains("sentences"))
+        sentences = result["sentences"].toList();
 
-        if ( map.type() == QVariant::List)
-         {
-           foreach ( QVariant map2, map.toList())
-             {
-                if ( map2.type() == QVariant::List)
-                 {
+    if (result.contains("dict"))
+        dict = result["dict"].toList();
 
-                    bool ishow = true;
-                    foreach ( QVariant var, map2.toList()){
-                        if ( (var.type() == QVariant::String) && ishow){
-                            ishow=false; 
-                            dictionnary+=("<b>" + var.toString() + "</b><br/>\n");
-                            }
-                        if ( var.type() == QVariant::List){
-                            foreach ( QVariant var2, var.toList()){
-                                if ( var2.type() == QVariant::String)
-                                    dictionnary+=(var2.toString()+"<br/>\n");
-                            }
-                        }
-                     }
-                    dictionnary+="<hr/>\n";
-                 }
-             }
-         }
-     }
-     textToReturn += dictionnary;
 
-    
-    m_destText->setText("<html><body>" + textToReturn + "</body></html>");
-    //m_destText->setHtml(textToReturn);
+foreach (QVariant trad , sentences)
+    {
+
+
+    if ( trad.toMap().contains("trans"))
+    {
+
+        textToReturn += trad.toMap().value("trans").toString();
+    }
+
+}
+textToReturn+="<hr/>";
+    QString dictionnary=QString();
+    foreach ( QVariant var, dict)
+    {
+
+        if ( var.type() == QVariant::Map)
+        {
+            foreach ( QVariant map, var.toMap())
+            {
+                if ( map.type() == QVariant::String)
+                    dictionnary+="<b>"+map.toString()+"</b><br/>";
+
+                if ( map.type() == QVariant::List)
+                {
+                    foreach ( QVariant word, map.toList())
+                    {
+                        dictionnary+=( word.toString() + " ");
+                    }
+                }
+            }
+        }
+    }
+
+    textToReturn += dictionnary;
+    m_destText->nativeWidget()->setHtml(textToReturn);
 }
 
 //===================================================================================
 void KTranslatoid::swapLanguages()
 {
     updateLanguage(m_destLanguage, m_sourceLanguage);
+    if (m_autoSwapTranslate) {
+        translate();
+    }
     writeConfig();
 }
 
@@ -446,10 +442,12 @@ m_reminderTimer->stop();
     m_ui.setupUi(languageForm);
     m_ui.checkBoxPaste->setChecked(m_autoPaste);
     m_ui.checkBoxTranslate->setChecked(m_autoTranslate);
-
+    m_ui.checkBoxSwapTranslate->setChecked(m_autoSwapTranslate);
+    
 
     QWidget *reminderForm = new QWidget;
     m_uiReminder.setupUi(reminderForm);
+    m_uiReminder.youRemember->setChecked(m_remember);    
     m_uiReminder.treeView->setModel(m_reminder->model());
     m_uiReminder.spinBoxDuration->setValue(m_reminderDuration);
     m_uiReminder.spinBoxFrequency->setValue(m_reminderFrenquency);
@@ -458,7 +456,7 @@ m_reminderTimer->stop();
 
 
     parent->addPage(languageForm, i18n("Translation"), "preferences-desktop-locale");
-    parent->addPage(reminderForm, i18n("Reminder"), "story-editor");
+    	parent->addPage(reminderForm, i18n("Reminder"), "story-editor");
 
     connect(parent, SIGNAL(applyClicked()), this, SLOT(configAccepted()));
     connect(parent, SIGNAL(okClicked()), this, SLOT(configAccepted()));
@@ -470,6 +468,8 @@ void KTranslatoid::configAccepted()
 m_reminderTimer->start(m_reminderFrenquency*1000);
     m_autoPaste = m_ui.checkBoxPaste->isChecked();
     m_autoTranslate = m_ui.checkBoxTranslate->isChecked();
+    m_autoSwapTranslate = m_ui.checkBoxSwapTranslate->isChecked();
+    m_remember = m_uiReminder.youRemember->isChecked();
     m_reminderDuration = m_uiReminder.spinBoxDuration->value();
     m_reminderFrenquency = m_uiReminder.spinBoxFrequency->value();
     writeConfig();
@@ -555,7 +555,9 @@ void KTranslatoid::readConfig()
     QString b = cg.readEntry("lresult", QString("en"));
     m_autoPaste = cg.readEntry("autoPaste", true);
     m_autoTranslate = cg.readEntry("autoTranslate", true);
+    m_autoSwapTranslate = cg.readEntry("autoSwapTranslate", true);
 
+    m_remember = cg.readEntry("remember", true);
     m_reminderDuration = cg.readEntry("reminderDuration", 5);
     m_reminderFrenquency= cg.readEntry("reminderFrequency",10);
 
@@ -583,7 +585,9 @@ void KTranslatoid::writeConfig()
 
     cg.writeEntry("autoPaste", m_autoPaste);
     cg.writeEntry("autoTranslate", m_autoTranslate);
+    cg.writeEntry("autoSwapTranslate", m_autoSwapTranslate);
 
+    cg.writeEntry("remember", m_remember);
     cg.writeEntry("reminderDuration", m_reminderDuration);
     cg.writeEntry("reminderFrequency", m_reminderFrenquency);
 
